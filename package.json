@@ -19,7 +19,11 @@
     "@angular/platform-browser": "~11.2.6",
     "@angular/platform-browser-dynamic": "~11.2.6",
     "@angular/router": "~11.2.6",
+    "@stomp/stompjs": "^6.1.0",
+    "ng2-stomp-service": "^1.2.2",
     "rxjs": "~6.6.0",
+    "sockjs-client": "^1.5.0",
+    "stompjs": "^2.3.3",
     "tslib": "^2.0.0",
     "zone.js": "~0.11.3"
   },
