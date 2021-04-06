@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import {ChangeDetectorRef, Component} from '@angular/core';
 import {Stomp} from '@stomp/stompjs';
 import * as SockJS from 'sockjs-client';
 import {HttpClient} from '@angular/common/http';
@@ -10,105 +10,87 @@ import {User} from './dto/user';
   styleUrls: ['./app.component.css']
 })
 export class AppComponent {
-  title = 'grokonez';
-  description = 'Angular-WebSocket Demo';
   user: User = new User();
 
-  greetings: string[] = [];
+  users: string[] = [];
   disabled = true;
   name: string;
   private stompClient;
-  userName = 'heszke w meszke';
+  userName: string;
 
-  constructor(private http: HttpClient) { }
-
-  setConnected(connected: boolean): void {
-    this.disabled = !connected;
-
-    if (connected) {
-      this.greetings = [];
-    }
-  }
+  constructor(private http: HttpClient, private change: ChangeDetectorRef) {}
 
   connect(): void {
-    // if (this.userName == null || this.userName === "") {
-    //   alert('Please input a nickname!');
-    //   return;
-    // }
-
     const socket = new SockJS('http://localhost:8080/chat');
     this.stompClient = Stomp.over(socket);
     const _this = this;
-    this.stompClient.connect({}, function (frame) {
-      _this.setConnected(true);
-      console.log('Connected: ' + frame);
+    this.stompClient.connect({userName: this.userName}, function () {
 
-      _this.stompClient.subscribe('/topic/broadcast', function (hello) {
-        _this.showGreeting(JSON.parse(hello.body).greeting);
+      this.stompClient.subscribe('http://localhost:8080/topic/broadcast', function (output) {
+        _this.printInConsole(JSON.parse(output.body));
       });
 
-      _this.stompClient.subscribe('/topic/active', function () {
-        this.updateUsers(this.userName);
-      });
+        // this.stompClient.subscribe('http://localhost:8080/topic/active', function () {
+        //   _this.updateUsers(this.userName);
+        // });
+        //
+        // this.stompClient.subscribe('/user/queue/messages', function (output) {
+        //   _this.printInConsole(JSON.parse(output.body));
+        // });
+        //
+        // _this.sendConnection(' connected to server');
 
-      _this.stompClient.subscribe('/user/queue/messages', function (output) {
-        this.showMessage('pozniej to dodam');
-      });
-
-      this.sendConnection(' connected to server');
     });
 
-
-    console.log('pierdolony name!!!!!!!:::      ' + _this.userName);
-
-    this.http.post<string>('http://localhost:8080/rest/user-connect',{userName: this.userName})
-      .subscribe(data => {
+    this.http.post('http://localhost:8080/rest/user-connect', this.userName).subscribe(data => {
       console.log(data);
-    },
-      err => {
-        console.error(err);
+    }, error => {
+      console.error(error);
+    })
+
+  }
+
+  disconnect(): void {
+    if(this.stompClient != null) {
+      this.http.post('http://localhost:8080/rest/user-disconnect', this.userName).subscribe(data => {
+          console.log(data);
+        }, error => {
+          console.error(error);
+        }
+      );
+
+      this.stompClient.disconnect(function() {
+        console.log('disconnected');
       });
+    }
   }
 
   updateUsers(userName: string): void {
-    //cos tam bedzie robic
-    console.log('teraz updatuje usera ' + userName);
-  }
-
-  showMessage(message: string) {
-    console.log('message: ' + message);
+    this.http.get<string[]>("http://localhost:8080/rest/active-users-except/" + userName).subscribe(data=> {
+      this.users = data;
+      console.log('users: ' + this.users);
+      this.change.detectChanges();
+    }, error => {
+      console.error(error);
+    })
   }
 
   sendConnection(message: string): void {
-    var text = this.userName + message;
-    this.sendBroadcast('jakis json');
+    const text = this.userName + message;
+    this.sendBroadcast({'from': 'server', 'text': text});
 
-    // for first time or last time, list active users:
     this.updateUsers(this.userName);
   }
 
-  sendBroadcast(json: string) {
-    this.stompClient.send("/app/broadcast", {}, JSON.stringify(json));
-  }
-
-  disconnect() {
-    if (this.stompClient != null) {
-      this.stompClient.disconnect();
+  sendBroadcast(json: any): void {
+    if(this.stompClient != null) {
+      this.stompClient.send('/app/broadcast', {}, JSON.stringify(json));
     }
-
-    this.setConnected(false);
-    console.log('Disconnected!');
   }
 
-  sendName() {
-    this.stompClient.send(
-      '/gkz/hello',
-      {},
-      JSON.stringify({ 'name': this.name })
-    );
-  }
-
-  showGreeting(message) {
-    this.greetings.push(message);
+  printInConsole(messageObject: any): void {
+    console.log('message: \n' + 'from: ' + messageObject.from + "\n recipient: " + messageObject.recipient
+    + '\n text: ' + messageObject.text + '\n time: ' + messageObject.time);
   }
 }
+
