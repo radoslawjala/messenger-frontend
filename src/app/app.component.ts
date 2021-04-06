@@ -22,7 +22,7 @@ export class AppComponent {
 
   constructor(private http: HttpClient) { }
 
-  setConnected(connected: boolean) {
+  setConnected(connected: boolean): void {
     this.disabled = !connected;
 
     if (connected) {
@@ -30,7 +30,7 @@ export class AppComponent {
     }
   }
 
-  connect() {
+  connect(): void {
     // if (this.userName == null || this.userName === "") {
     //   alert('Please input a nickname!');
     //   return;
@@ -58,6 +58,8 @@ export class AppComponent {
       this.sendConnection(' connected to server');
     });
 
+
+    console.log('pierdolony name!!!!!!!:::      ' + _this.userName);
 
     this.http.post<string>('http://localhost:8080/rest/user-connect',{userName: this.userName})
       .subscribe(data => {
