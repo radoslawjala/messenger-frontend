@@ -1,9 +1,10 @@
-import { Component, ChangeDetectorRef  } from '@angular/core';
+import {Component, ChangeDetectorRef} from '@angular/core';
 import {Stomp} from '@stomp/stompjs';
 import * as SockJS from 'sockjs-client';
 import {HttpClient} from '@angular/common/http';
 import {User} from './dto/user';
 import {Message} from './dto/message';
+import {SimpleMessage} from './dto/simple-message';
 
 @Component({
   selector: 'app-root',
@@ -14,6 +15,8 @@ export class AppComponent {
   title = 'habababa';
   description = 'Angular-WebSocket Demo';
   user: User;
+  userInfo: string;
+  userVerifiedSuccessfully: boolean;
   usersList: string[] = [];
   greetings: string[] = [];
   messages: Message[] = [];
@@ -26,7 +29,8 @@ export class AppComponent {
   textMessage: string;
   connected: boolean = false;
 
-  constructor(private http: HttpClient, private changeDetection: ChangeDetectorRef) { }
+  constructor(private http: HttpClient, private changeDetection: ChangeDetectorRef) {
+  }
 
   connect() {
     if (this.isUsernameIncorrect()) {
@@ -34,32 +38,37 @@ export class AppComponent {
       return;
     }
 
-    this.http.post<string>('http://localhost:8080/rest/user-connect',{username: this.userName})
+    this.http.post<SimpleMessage>('http://localhost:8080/rest/user-connect', {username: this.userName})
       .subscribe(data => {
-          console.log(data);
+          this.userInfo = data.text;
+          this.userVerifiedSuccessfully = data.userVerifiedSuccessfully;
+          if(!this.userVerifiedSuccessfully) {
+            return;
+          } else {
+            const socket = new SockJS('http://localhost:8080/chat');
+            this.stompClient = Stomp.over(socket);
+            const _this = this;
+            this.stompClient.connect({username: _this.userName}, function(frame) {
+              console.log('Connected: ' + frame);
+
+              _this.stompClient.subscribe('/topic/active', function() {
+                console.log('wiadomosc z topic/active');
+                _this.updateUsers(_this.userName);
+              });
+
+              _this.stompClient.subscribe('/user/queue/messages', function(output) {
+                _this.createTextNode(JSON.parse(output.body));
+              });
+
+              _this.sendConnection();
+              _this.connected = true;
+            });
+          }
         },
         err => {
-          console.error(err);
+          this.userInfo = err;
         });
 
-    const socket = new SockJS('http://localhost:8080/chat');
-    this.stompClient = Stomp.over(socket);
-    const _this = this;
-    this.stompClient.connect({username: _this.userName}, function (frame) {
-      console.log('Connected: ' + frame);
-
-      _this.stompClient.subscribe('/topic/active', function () {
-        console.log('wiadomosc z topic/active');
-        _this.updateUsers(_this.userName);
-      });
-
-      _this.stompClient.subscribe('/user/queue/messages', function (output) {
-        _this.createTextNode(JSON.parse(output.body));
-      });
-
-      _this.sendConnection();
-      _this.connected = true;
-    });
   }
 
   private isUsernameIncorrect() {
@@ -81,23 +90,23 @@ export class AppComponent {
   }
 
   disconnect() {
-    if(this.stompClient != null) {
-      this.http.post<string>('http://localhost:8080/rest/user-disconnect',{username: this.userName})
+    if (this.stompClient != null) {
+      this.http.post<string>('http://localhost:8080/rest/user-disconnect', {username: this.userName})
         .subscribe(data => {
             console.log(data);
           },
           err => {
             console.error(err);
           });
-        this.sendConnection()
-        this.stompClient.disconnect();
+      this.sendConnection();
+      this.stompClient.disconnect();
     }
     this.connected = false;
     console.log('Disconnected!');
   }
 
   updateUsers(userName: string): void {
-    this.http.get<string[]>('http://localhost:8080/rest/active-users-except/' + userName).subscribe(data=> {
+    this.http.get<string[]>('http://localhost:8080/rest/active-users-except/' + userName).subscribe(data => {
         this.usersList = data;
         // this.usersList = JSON.parse(JSON.stringify(data));
         console.log('received data from updateUsers: ' + this.usersList);
@@ -113,7 +122,7 @@ export class AppComponent {
   }
 
   sendConnection(): void {
-      this.updateUsers(this.userName);
+    this.updateUsers(this.userName);
   }
 
   setSelectedUser(userName) {
@@ -122,10 +131,12 @@ export class AppComponent {
   }
 
   send(): void {
-    if(this.selectedUser != null) {
-      this.stompClient.send("/app/chat", this.userName,
-        JSON.stringify({'from': this.userName, 'text': this.textMessage,
-          'recipient': this.selectedUser, 'time' : new Date().getTime()}));
+    if (this.selectedUser != null) {
+      this.stompClient.send('/app/chat', this.userName,
+        JSON.stringify({
+          'from': this.userName, 'text': this.textMessage,
+          'recipient': this.selectedUser, 'time': new Date().getTime()
+        }));
     } else {
       alert('Please select user!');
       return;

@@ -28,9 +28,13 @@
             >Disconnect
             </button>
           </div>
+          <div *ngIf="userVerifiedSuccessfully; else userExists">
+            <p style="color: green">{{userInfo}}</p>
+          </div>
+          <ng-template #userExists>
+            <p style="color: red">{{userInfo}}</p>
+          </ng-template>
         </div>
-        <div *ngIf="message1">{{message1}}</div>
-        <div *ngIf="message2">{{message2}}</div>
 
         <div *ngIf="connected">
           <div *ngFor="let user of usersList">
